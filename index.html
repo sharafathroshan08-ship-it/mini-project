@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="CyberShield — Advanced cybersecurity portal: phishing analysis, password breach auditing, and HTTP security headers scanner.">
+  <title>CyberShield | Cybersecurity Portal</title>
+
+  <style>
+    /* ═══════════════════════════════
+       GOOGLE FONT IMPORT
+    ═══════════════════════════════ */
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+    /* ═══════════════════════════════
+       CSS CUSTOM PROPERTIES
+    ═══════════════════════════════ */
+    :root {
+      --bg:            #050a0e;
+      --surface:       rgba(255, 255, 255, 0.04);
+      --border:        rgba(0, 255, 157, 0.15);
+      --accent-green:  #00ff9d;
+      --accent-cyan:   #00b4d8;
+      --accent-red:    #ff4d6d;
+      --accent-orange: #f4a261;
+      --accent-purple: #c77dff;
+      --text-primary:  #e0e0e0;
+      --text-dim:      #5a7a6a;
+    }
+
+    /* ═══════════════════════════════
+       RESET & BASE
+    ═══════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      overflow: hidden; /* We scroll the main app-container if needed */
+      background: var(--bg);
+      color: var(--text-primary);
+      font-family: 'Share Tech Mono', monospace;
+    }
+
+    /* ═══════════════════════════════
+       SCANLINE OVERLAY & MATRIX
+    ═══════════════════════════════ */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 999; pointer-events: none;
+      background: repeating-linear-gradient(to bottom, transparent 0px, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+    }
+    #matrix {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      z-index: 0; pointer-events: none;
+    }
+
+    /* ═══════════════════════════════
+       INTRO SEQUENCE
+    ═══════════════════════════════ */
+    #intro-overlay {
+      position: fixed; inset: 0; z-index: 10000;
+      background: #020508;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      transition: opacity 0.8s ease, transform 0.8s ease;
+    }
+    .intro-terminal {
+      font-size: 1.4rem; color: var(--accent-green);
+      text-shadow: 0 0 12px rgba(0,255,157,0.6);
+      min-height: 2rem;
+    }
+    .typing-cursor {
+      display: inline-block; width: 8px; height: 1.2em;
+      background: var(--accent-green); vertical-align: text-bottom;
+      animation: cursorBlink 0.6s step-end infinite;
+    }
+    @keyframes cursorBlink { 0%,100%{opacity:1;} 50%{opacity:0;} }
+
+    /* ═══════════════════════════════
+       HEADER
+    ═══════════════════════════════ */
+    .header {
+      position: relative; z-index: 10;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 64px; padding: 0 2rem;
+      border-bottom: 1px solid var(--border);
+      background: rgba(5,10,14,0.9); backdrop-filter: blur(10px);
+    }
+    .header-logo {
+      font-size: 1.4rem; color: var(--accent-green); letter-spacing: 0.2em;
+      text-shadow: 0 0 20px rgba(0,255,157,0.4);
+    }
+    .header-right { display: flex; align-items: center; gap: 1.5rem; }
+    .header-status {
+      display: flex; align-items: center; gap: 0.5rem;
+      font-size: 0.75rem; color: var(--accent-green); letter-spacing: 0.1em;
+    }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--accent-green);
+      box-shadow: 0 0 8px var(--accent-green); animation: blink 1s ease-in-out infinite;
+    }
+    @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+
+    /* ═══════════════════════════════
+       APP CONTAINER & TABS
+    ═══════════════════════════════ */
+    .app-container {
+      position: relative; z-index: 10;
+      height: calc(100vh - 64px);
+      overflow-y: auto;
+      padding: 1.5rem 1rem 4rem 1rem;
+      opacity: 0; transform: scale(0.95); transition: opacity 0.8s ease, transform 0.8s ease;
+    }
+    .app-container.ready { opacity: 1; transform: scale(1); }
+    .app-container::-webkit-scrollbar { width: 6px; }
+    .app-container::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+    .app-container::-webkit-scrollbar-thumb { background: rgba(0,255,157,0.2); border-radius: 3px; }
+
+    .tab-nav {
+      display: flex; gap: 1rem; justify-content: center; margin-bottom: 2rem;
+      flex-wrap: wrap;
+    }
+    .tab-btn {
+      background: rgba(0,0,0,0.4); border: 1px solid var(--border); color: var(--text-dim);
+      padding: 0.7rem 1.2rem; font-family: 'Share Tech Mono', monospace; font-size: 0.85rem; letter-spacing: 0.1em;
+      border-radius: 8px; cursor: pointer; transition: all 0.3s;
+    }
+    .tab-btn:hover { border-color: var(--accent-green); color: var(--text-primary); }
+    .tab-btn.active {
+      color: var(--text-primary); border-color: var(--accent-green);
+      background: rgba(0,255,157,0.1); box-shadow: 0 0 15px rgba(0,255,157,0.2);
+    }
+    
+    .tab-btn[data-target="tab-pwned"].active { border-color: var(--accent-cyan); background: rgba(0,180,216,0.1); box-shadow: 0 0 15px rgba(0,180,216,0.2); }
+    .tab-btn[data-target="tab-scan"].active { border-color: var(--accent-purple); background: rgba(199,125,255,0.1); box-shadow: 0 0 15px rgba(199,125,255,0.2); }
+
+    .tab-content { display: none; max-width: 800px; margin: 0 auto; animation: fadeSlideIn 0.4s forwards; }
+    .tab-content.active { display: block; }
+
+    /* ═══════════════════════════════
+       GLASS CARDS
+    ═══════════════════════════════ */
+    .glass-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+      backdrop-filter: blur(16px); box-shadow: 0 0 30px rgba(0,255,157,0.05);
+      padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; overflow: hidden;
+    }
+    .glass-card--cyan { border-color: rgba(0,180,216,0.2); box-shadow: 0 0 30px rgba(0,180,216,0.05); }
+    .glass-card--purple { border-color: rgba(199,125,255,0.2); box-shadow: 0 0 30px rgba(199,125,255,0.05); }
+
+    .section-label { font-size: 0.75rem; letter-spacing: 0.25em; color: var(--accent-green); }
+    .section-label--cyan { color: var(--accent-cyan); }
+    .section-label--purple { color: var(--accent-purple); }
+
+    /* ═══════════════════════════════
+       COMMON UI
+    ═══════════════════════════════ */
+    .cyber-input {
+      width: 100%; background: rgba(0,0,0,0.4); border: 1px solid rgba(0,255,157,0.2);
+      border-radius: 8px; color: var(--accent-green); font-family: 'Share Tech Mono', monospace;
+      font-size: 0.95rem; padding: 0.8rem 1rem; outline: none; transition: all 0.3s;
+    }
+    .cyber-input:focus { border-color: var(--accent-green); box-shadow: 0 0 0 3px rgba(0,255,157,0.1), 0 0 20px rgba(0,255,157,0.15); }
+    .cyber-input::placeholder { color: var(--text-dim); }
+    .cyber-input--error { border-color: var(--accent-red) !important; box-shadow: 0 0 0 3px rgba(255,77,109,0.15) !important; animation: shake 0.4s ease; }
+
+    .cyber-btn {
+      width: 100%; padding: 0.85rem; border: none; border-radius: 8px; font-family: 'Share Tech Mono', monospace;
+      font-size: 0.85rem; letter-spacing: 0.15em; cursor: pointer; position: relative; overflow: hidden; transition: transform 0.1s;
+    }
+    .cyber-btn::before { content: ''; position: absolute; top:0; left:0; height:100%; width:0%; background:rgba(255,255,255,0.1); transition:width 0.4s ease; }
+    .cyber-btn:hover::before { width: 100%; }
+    .cyber-btn:active { transform: scale(0.98); }
+    .cyber-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .cyber-btn--green { background: linear-gradient(135deg, #00c97a, #00ff9d22); color: #000; font-weight: bold; box-shadow: 0 0 20px rgba(0,255,157,0.3); }
+    .cyber-btn--cyan { background: linear-gradient(135deg, #0090b0, #00b4d822); color: #fff; box-shadow: 0 0 20px rgba(0,180,216,0.3); }
+    .cyber-btn--purple { background: linear-gradient(135deg, #7b2ff7, #c77dff22); color: #fff; box-shadow: 0 0 20px rgba(199,125,255,0.3); }
+    .cyber-btn--outline { background: transparent; border: 1px solid var(--accent-cyan); color: var(--accent-cyan); box-shadow: none; padding: 0.6rem; font-size: 0.75rem; }
+
+    .result-card { border-radius: 10px; padding: 1.2rem; margin-top: 0.5rem; animation: fadeSlideIn 0.4s ease forwards; background: rgba(0,0,0,0.2); }
+    @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* ═══════════════════════════════
+       MODULE 1 — THREAT ANALYZER
+    ═══════════════════════════════ */
+    .threat-display { display: flex; align-items: center; gap: 2rem; }
+    .gauge-wrap { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+    .gauge-svg { width: 120px; height: 120px; }
+    .gauge-bg-circle { fill: none; stroke: #1a2a1f; stroke-width: 8; }
+    .gauge-arc { fill: none; stroke-width: 8; stroke-linecap: round; stroke-dasharray: 326.7; stroke-dashoffset: 326.7; transform-origin: center; transform: rotate(-90deg); transition: stroke-dashoffset 1.2s ease-out; }
+    .gauge-arc--green  { stroke: var(--accent-green); }
+    .gauge-arc--orange { stroke: var(--accent-orange); }
+    .gauge-arc--red    { stroke: var(--accent-red); animation: flicker 0.15s infinite; }
+    .gauge-center-text { font-family: 'Share Tech Mono', monospace; fill: var(--accent-green); }
+    
+    .verdict-box { flex: 1; }
+    .verdict-text { font-size: 1.6rem; letter-spacing: 0.1em; font-weight: bold; }
+    
+    .signal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem; }
+    .feature-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; opacity: 0; animation: fadeSlideIn 0.4s ease forwards; }
+    .feature-icon--ok  { color: var(--accent-green); }
+    .feature-icon--bad { color: var(--accent-red); }
+
+    /* Expand: URL Components */
+    .url-breakdown {
+      margin-top: 1rem; padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 8px;
+    }
+    .url-bd-title { font-size: 0.65rem; color: var(--text-dim); letter-spacing: 0.15em; margin-bottom: 0.5rem; }
+    .url-bd-row { display: flex; justify-content: space-between; font-size: 0.8rem; padding: 0.3rem 0; border-bottom: 1px dashed rgba(255,255,255,0.05); }
+    .url-bd-key { color: var(--text-dim); }
+    .url-bd-val { color: var(--accent-green); word-break: break-all; max-width: 70%; text-align: right; }
+
+    /* ═══════════════════════════════
+       MODULE 2 — PASSWORD VAULT
+    ═══════════════════════════════ */
+    .pwd-wrap { position: relative; }
+    .pwd-wrap .cyber-input { padding-right: 3rem; border-color: rgba(0,180,216,0.3); color: var(--accent-cyan); }
+    .pwd-wrap .cyber-input:focus { border-color: var(--accent-cyan); box-shadow: 0 0 0 3px rgba(0,180,216,0.1), 0 0 20px rgba(0,180,216,0.15); }
+    .eye-toggle { position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.2rem; color: var(--text-dim); }
+    .eye-toggle:hover { color: var(--accent-cyan); }
+
+    .strength-meter { margin: 1rem 0; }
+    .strength-segments { display: flex; gap: 4px; margin-bottom: 0.5rem; }
+    .strength-seg { height: 6px; border-radius: 3px; flex: 1; background: #1a1a1a; transition: all 0.3s; }
+    .strength-seg--1 { background: var(--accent-red); }
+    .strength-seg--2 { background: var(--accent-orange); }
+    .strength-seg--3 { background: #f4d261; }
+    .strength-seg--4 { background: var(--accent-cyan); }
+    .strength-seg--5 { background: var(--accent-green); box-shadow: 0 0 8px var(--accent-green); }
+    .strength-criteria { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
+    .criteria-item { font-size: 0.75rem; color: var(--text-dim); transition: color 0.3s; }
+    .criteria-item.met { color: var(--accent-cyan); }
+
+    /* Expand: Generator Tool */
+    .generator-panel { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid rgba(0,180,216,0.2); }
+    .gen-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+    .gen-opt { display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem; }
+    .range-slider { -webkit-appearance: none; appearance: none; width: 60%; height: 4px; background: rgba(255,255,255,0.1); outline: none; border-radius: 2px; }
+    .range-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; background: var(--accent-cyan); border-radius: 50%; cursor: pointer; }
+
+    /* Vault Results */
+    .clean-content { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; padding: 1.5rem; text-align: center; }
+    .pwned-content { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; text-align: center; padding: 1.5rem; }
+    .pwned-icon { font-size: 3rem; }
+
+    /* ═══════════════════════════════
+       MODULE 3 — SECURITY HEADERS
+    ═══════════════════════════════ */
+    #headerUrl { border-color: rgba(199,125,255,0.3); color: var(--accent-purple); }
+    #headerUrl:focus { border-color: var(--accent-purple); box-shadow: 0 0 0 3px rgba(199,125,255,0.1), 0 0 20px rgba(199,125,255,0.15); }
+
+    .grade-wrap { display: flex; align-items: center; gap: 1.5rem; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid rgba(199,125,255,0.2); }
+    .grade-badge { width: 90px; height: 90px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; border: 4px solid; font-weight: bold; }
+    .grade-badge--Aplus{ color:var(--accent-green); border-color:var(--accent-green); box-shadow: 0 0 30px rgba(0,255,157,0.3); }
+    .grade-badge--A    { color:#00e08a; border-color:#00e08a; box-shadow: 0 0 25px rgba(0,224,138,0.3); }
+    .grade-badge--B    { color:var(--accent-cyan); border-color:var(--accent-cyan); box-shadow: 0 0 25px rgba(0,180,216,0.3); }
+    .grade-badge--C    { color:var(--accent-orange); border-color:var(--accent-orange); box-shadow: 0 0 25px rgba(244,162,97,0.3); }
+    .grade-badge--D    { color:#e07020; border-color:#e07020; box-shadow: 0 0 25px rgba(224,112,32,0.3); }
+    .grade-badge--F    { color:var(--accent-red); border-color:var(--accent-red); box-shadow: 0 0 30px rgba(255,77,109,0.3); animation: flicker 0.2s infinite; }
+    .grade-info h3 { font-size: 1.2rem; color: var(--accent-purple); margin-bottom: 0.2rem; }
+    .grade-info p { font-size: 0.85rem; color: var(--text-dim); }
+
+    .header-list { display: flex; flex-direction: column; gap: 0.8rem; }
+    .header-item { background: rgba(0,0,0,0.3); border-radius: 8px; padding: 1rem; border-left: 3px solid; display: flex; flex-direction: column; gap: 0.4rem; }
+    .header-item--present { border-left-color: var(--accent-green); }
+    .header-item--missing { border-left-color: var(--accent-red); }
+    
+    .hi-top { display: flex; justify-content: space-between; align-items: flex-start; }
+    .hi-name { font-size: 0.9rem; font-weight: bold; color: var(--text-primary); }
+    .hi-sev { font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; }
+    .hi-sev--critical { background: rgba(255,77,109,0.2); color: var(--accent-red); }
+    .hi-sev--high     { background: rgba(244,162,97,0.2); color: var(--accent-orange); }
+    .hi-sev--medium   { background: rgba(0,180,216,0.2); color: var(--accent-cyan); }
+    .hi-sev--low      { background: rgba(90,122,106,0.2); color: var(--text-dim); }
+    
+    .hi-desc { font-size: 0.8rem; color: var(--text-dim); }
+    .hi-val { font-size: 0.75rem; color: var(--accent-green); word-break: break-all; margin-top: 0.2rem; padding: 0.4rem; background: rgba(0,0,0,0.5); border-radius: 4px; }
+    
+    /* Expand: Fix Suggestion */
+    .hi-fix { margin-top: 0.5rem; padding: 0.6rem; background: rgba(199,125,255,0.08); border: 1px dashed rgba(199,125,255,0.4); border-radius: 4px; font-size: 0.75rem; color: var(--accent-purple); }
+
+    /* Utils */
+    @keyframes shake { 0%,100%{transform:translateX(0);} 20%{transform:translateX(-8px);} 40%{transform:translateX(8px);} 60%{transform:translateX(-5px);} 80%{transform:translateX(5px);} }
+    .loading-wrap { display: flex; align-items: center; justify-content: center; gap: 1rem; padding: 2rem; color: var(--accent-green); letter-spacing: 0.15em; }
+    .spinner { width: 30px; height: 30px; border: 3px solid rgba(255,255,255,0.1); border-top-color: currentColor; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+  </style>
+</head>
+<body>
+
+  <!-- MATRIX CANVAS -->
+  <canvas id="matrix"></canvas>
+
+  <!-- INTRO ANIMATION OVERLAY -->
+  <div id="intro-overlay">
+    <div class="intro-terminal" id="intro-text"></div>
+  </div>
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-logo">🛡 CYBERSHIELD</div>
+    <div class="header-right">
+      <div class="header-status">
+        <div class="status-dot"></div>
+        <span>SYSTEM SECURE</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="app-container" id="app-container">
+    
+    <!-- TABS NAVIGATION -->
+    <div class="tab-nav">
+      <button class="tab-btn active" data-target="tab-threat">[_THREAT_ANALYZER_]</button>
+      <button class="tab-btn" data-target="tab-pwned" style="--accent-green: var(--accent-cyan);">[_PASSWORD_VAULT_]</button>
+      <button class="tab-btn" data-target="tab-scan" style="--accent-green: var(--accent-purple);">[_SECURITY_SCANNER_]</button>
+    </div>
+
+    <!-- ─────────────────────────────
+         TAB 1 — THREAT ANALYZER
+    ───────────────────────────────── -->
+    <div class="tab-content active" id="tab-threat">
+      <div class="glass-card">
+        <div class="section-label">[ URL INTELLIGENCE ]</div>
+        <input class="cyber-input" type="text" id="urlInput" placeholder="https://enter-target-url.com" autocomplete="off" spellcheck="false">
+        <button class="cyber-btn cyber-btn--green" id="analyzeBtn">⟳ ANALYZE THREAT VECTOR</button>
+        <div id="threatResult"></div>
+      </div>
+    </div>
+
+    <!-- ─────────────────────────────
+         TAB 2 — PASSWORD VAULT
+    ───────────────────────────────── -->
+    <div class="tab-content" id="tab-pwned">
+      <div class="glass-card glass-card--cyan">
+        <div class="section-label section-label--cyan">[ ZERO-KNOWLEDGE AUDITOR ]</div>
+        
+        <div class="pwd-wrap">
+          <input class="cyber-input" type="password" id="pwdInput" placeholder="Enter password to audit" autocomplete="off">
+          <button class="eye-toggle" id="eyeToggle" aria-label="Toggle visibility">👁</button>
+        </div>
+
+        <div class="strength-meter">
+          <div class="strength-segments">
+            <div class="strength-seg" id="seg1"></div>
+            <div class="strength-seg" id="seg2"></div>
+            <div class="strength-seg" id="seg3"></div>
+            <div class="strength-seg" id="seg4"></div>
+            <div class="strength-seg" id="seg5"></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+            <span style="font-size: 0.75rem; color: var(--text-dim);">STRENGTH</span>
+            <span class="strength-label-text" id="strengthLabel" style="font-weight: bold; color: var(--accent-cyan);"></span>
+          </div>
+          <div class="strength-criteria">
+            <div class="criteria-item" id="c-len">◆ 8+ CHARS</div>
+            <div class="criteria-item" id="c-upper">◆ UPPERCASE</div>
+            <div class="criteria-item" id="c-lower">◆ LOWERCASE</div>
+            <div class="criteria-item" id="c-num">◆ NUMBER</div>
+            <div class="criteria-item" id="c-sym">◆ SYMBOL</div>
+          </div>
+        </div>
+
+        <button class="cyber-btn cyber-btn--cyan" id="auditBtn">⟳ AUDIT DATABASE</button>
+        <div style="text-align: center; font-size: 0.65rem; color: var(--text-dim);">🔒 Uses k-Anonymity — only 5 chars of hash sent.</div>
+
+        <div id="vaultResult"></div>
+
+        <!-- NEW: Generator Tool -->
+        <div class="generator-panel">
+          <div class="section-label section-label--cyan" style="margin-bottom: 1rem;">[ SECURE GENERATOR ]</div>
+          <div class="gen-grid">
+            <div class="gen-opt">
+              <span>Length: <span id="genLenVal">16</span></span>
+              <input type="range" class="range-slider" id="genLen" min="12" max="64" value="16">
+            </div>
+            <div class="gen-opt">
+              <label><input type="checkbox" id="genNum" checked> Numbers (0-9)</label>
+            </div>
+            <div class="gen-opt">
+              <label><input type="checkbox" id="genSym" checked> Symbols (!@#$)</label>
+            </div>
+            <div class="gen-opt">
+              <button class="cyber-btn cyber-btn--outline" id="generateBtn" style="border-radius: 4px;">GENERATE</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ─────────────────────────────
+         TAB 3 — SECURITY SCANNER
+    ───────────────────────────────── -->
+    <div class="tab-content" id="tab-scan">
+      <div class="glass-card glass-card--purple">
+        <div class="section-label section-label--purple">[ HTTP HEADER SCANNER ]</div>
+        <input class="cyber-input" type="text" id="headerUrl" placeholder="https://site-to-scan.com" autocomplete="off" spellcheck="false">
+        <button class="cyber-btn cyber-btn--purple" id="scanBtn">⟳ INITIATE SCAN</button>
+        <div id="headerResult"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    /* ═══════════════════════════════
+       LIFECYCLE & INTRO ANIMATION
+    ═══════════════════════════════ */
+    window.addEventListener('load', () => {
+      const intro = document.getElementById('intro-overlay');
+      const textEl = document.getElementById('intro-text');
+      const app = document.getElementById('app-container');
+      
+      const bootSequence = [
+        "INITIALIZING CYBERSHIELD OS...",
+        "CONNECTING TO NEURONET...",
+        "LOADING ENCRYPTION MODULES...",
+        "SYSTEM ONLINE."
+      ];
+      
+      let step = 0;
+      
+      function typeText(text, callback) {
+        textEl.textContent = '';
+        const cursor = document.createElement('span');
+        cursor.className = 'typing-cursor';
+        textEl.appendChild(cursor);
+        
+        let i = 0;
+        const iv = setInterval(() => {
+          if (i < text.length) {
+            textEl.insertBefore(document.createTextNode(text[i++]), cursor);
+          } else {
+            clearInterval(iv);
+            if (callback) setTimeout(callback, 300);
+          }
+        }, 30);
+      }
+
+      function nextStep() {
+        if (step < bootSequence.length) {
+          typeText(bootSequence[step], () => { step++; nextStep(); });
+        } else {
+          // Finish intro
+          setTimeout(() => {
+            intro.style.opacity = '0';
+            intro.style.transform = 'scale(1.1)';
+            app.classList.add('ready');
+            setTimeout(() => intro.remove(), 800);
+          }, 300);
+        }
+      }
+      
+      nextStep();
+      initMatrix();
+    });
+
+    /* ═══════════════════════════════
+       TABS LOGIC
+    ═══════════════════════════════ */
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(btn.dataset.target).classList.add('active');
+      });
+    });
+
+    /* ═══════════════════════════════
+       MATRIX CANVAS
+    ═══════════════════════════════ */
+    function initMatrix() {
+      const canvas = document.getElementById('matrix');
+      const ctx = canvas.getContext('2d');
+      const chars = 'アイウエオカキクケコサシスセソタチツテトナニヌネノABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&';
+      const fs = 14;
+      let cols, drops;
+
+      function resize() {
+        canvas.width  = window.innerWidth;
+        canvas.height = window.innerHeight;
+        cols  = Math.floor(canvas.width / fs);
+        drops = new Array(cols).fill(1);
+      }
+      function draw() {
+        ctx.fillStyle = 'rgba(5,10,14,0.05)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#00ff9d';
+        ctx.font = fs + 'px Share Tech Mono';
+        ctx.globalAlpha = 0.07;
+        for (let c = 0; c < cols; c++) {
+          const ch = chars[Math.floor(Math.random() * chars.length)];
+          ctx.fillText(ch, c * fs, drops[c] * fs);
+          if (drops[c] * fs > canvas.height && Math.random() > 0.975) drops[c] = 0;
+          drops[c]++;
+        }
+        ctx.globalAlpha = 1;
+        requestAnimationFrame(draw);
+      }
+      resize(); draw(); window.addEventListener('resize', resize);
+    }
+
+    function shakeInput(el) {
+      el.classList.remove('cyber-input--error');
+      void el.offsetWidth;
+      el.classList.add('cyber-input--error');
+      setTimeout(() => el.classList.remove('cyber-input--error'), 600);
+    }
+
+    /* ═══════════════════════════════
+       MODULE 1: THREAT ANALYZER
+    ═══════════════════════════════ */
+    document.getElementById('analyzeBtn').addEventListener('click', async () => {
+      const url = document.getElementById('urlInput').value.trim();
+      const btn = document.getElementById('analyzeBtn');
+      const result = document.getElementById('threatResult');
+
+      if (!url) { shakeInput(document.getElementById('urlInput')); return; }
+      btn.disabled = true;
+      result.innerHTML = `<div class="result-card"><div class="loading-wrap"><div class="spinner"></div><span>ANALYZING URL...</span></div></div>`;
+
+      try {
+        const resp = await fetch('http://localhost:8000/analyze-url', {
+          method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ url })
+        });
+        if (!resp.ok) throw new Error();
+        const data = await resp.json();
+
+        const score = data.threat_score;
+        const circ = 326.7;
+        const offset = circ * (1 - score / 100);
+        const [arcCls, vTxt, vCls] = score <= 30 ? ['gauge-arc--green','NO THREAT DETECTED','verdict-text--green'] :
+                                     score <= 60 ? ['gauge-arc--orange','SUSPICIOUS PATTERNS','verdict-text--orange'] :
+                                     ['gauge-arc--red','PHISHING LIKELY','verdict-text--red'];
+
+        const comps = data.components;
+        const compHTML = `
+          <div class="url-breakdown">
+            <div class="url-bd-title">URL STRUCTURE PARSING</div>
+            <div class="url-bd-row"><span class="url-bd-key">Protocol</span><span class="url-bd-val">${comps.scheme || 'N/A'}</span></div>
+            <div class="url-bd-row"><span class="url-bd-key">Domain</span><span class="url-bd-val">${comps.domain || 'N/A'}</span></div>
+            <div class="url-bd-row"><span class="url-bd-key">Path</span><span class="url-bd-val">${comps.path || 'N/A'}</span></div>
+            <div class="url-bd-row" style="border:none"><span class="url-bd-key">Query</span><span class="url-bd-val" style="color:var(--accent-cyan)">${comps.query || 'None'}</span></div>
+          </div>
+        `;
+
+        const signalHTML = Object.entries(data.features).map(([k,v], i) => {
+          let bad = false, label = k;
+          if(k==='has_at_symbol'){ bad=v; label="Contains @ Symbol"; }
+          if(k==='phish_keywords'){ bad=v; label="Phishing Keywords"; }
+          if(k==='missing_https'){ bad=v; label="No HTTPS"; }
+          if(k==='suspicious_tld'){ bad=v; label="Suspicious TLD"; }
+          if(k==='has_ip_address'){ bad=v; label="IP instead of Domain"; }
+          if(typeof bad==='boolean' && !label.includes('_')) {
+            return `<div class="feature-item" style="animation-delay:${i*50}ms">
+              <span class="${bad?'feature-icon--bad':'feature-icon--ok'}">${bad?'✗':'✓'}</span> ${label}
+            </div>`;
+          } return '';
+        }).join('');
+
+        result.innerHTML = `
+          <div class="result-card">
+            <div class="threat-display">
+              <div class="gauge-wrap">
+                <svg class="gauge-svg" viewBox="0 0 120 120">
+                  <circle class="gauge-bg-circle" cx="60" cy="60" r="52"/>
+                  <circle class="gauge-arc ${arcCls}" id="gaugeArc" cx="60" cy="60" r="52" stroke-dasharray="${circ}" stroke-dashoffset="${circ}"/>
+                  <text class="gauge-center-text gauge-score-val" x="60" y="57" text-anchor="middle" dominant-baseline="middle">${score}%</text>
+                  <text class="gauge-center-text" x="60" y="73" text-anchor="middle" style="fill:var(--text-dim); font-size: 0.5rem">RISK</text>
+                </svg>
+              </div>
+              <div class="verdict-box">
+                <div class="verdict-text ${vCls}">${vTxt}</div>
+                <div class="signal-grid">${signalHTML}</div>
+              </div>
+            </div>
+            ${compHTML}
+          </div>
+        `;
+        setTimeout(() => document.getElementById('gaugeArc').style.strokeDashoffset = offset, 50);
+
+      } catch(err) {
+        result.innerHTML = `<div class="result-card result-card--error"><div class="error-msg">Backend error. Ensure FastAPI is running.</div></div>`;
+      } finally { btn.disabled = false; }
+    });
+
+    /* ═══════════════════════════════
+       MODULE 2: PASSWORD VAULT
+    ═══════════════════════════════ */
+    const pwdInput = document.getElementById('pwdInput');
+    pwdInput.addEventListener('input', e => {
+      const p = e.target.value;
+      const c = [p.length>7, /[A-Z]/.test(p), /[a-z]/.test(p), /[0-9]/.test(p), /[^A-Za-z0-9]/.test(p)];
+      const sc = p.length ? c.filter(Boolean).length : 0;
+      
+      for(let i=1;i<=5;i++) document.getElementById('seg'+i).className = 'strength-seg' + (i<=sc ? ` strength-seg--${sc}` : '');
+      const lbls = ['','WEAK','FAIR','GOOD','STRONG','SECURE'];
+      document.getElementById('strengthLabel').textContent = sc ? lbls[sc] : '';
+      
+      ['c-len','c-upper','c-lower','c-num','c-sym'].forEach((id,i) => document.getElementById(id).classList.toggle('met', c[i]));
+    });
+
+    document.getElementById('eyeToggle').addEventListener('click', e => {
+      pwdInput.type = pwdInput.type === 'password' ? 'text' : 'password';
+      e.target.textContent = pwdInput.type === 'password' ? '👁' : '🙈';
+    });
+
+    document.getElementById('auditBtn').addEventListener('click', async () => {
+      const pwd = pwdInput.value;
+      if(!pwd){ shakeInput(pwdInput); return; }
+      
+      const vRes = document.getElementById('vaultResult');
+      document.getElementById('auditBtn').disabled = true;
+      vRes.innerHTML = `<div class="result-card"><div class="loading-wrap" style="color:var(--accent-cyan)"><div class="spinner" style="border-top-color:var(--accent-cyan)"></div><span>QUERYING HIBP DATABASE...</span></div></div>`;
+
+      try {
+        const enc = new TextEncoder();
+        const buf = await crypto.subtle.digest('SHA-1', enc.encode(pwd));
+        const hash = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('').toUpperCase();
+        
+        const resp = await fetch(`http://localhost:8000/pwned-check/${hash.slice(0,5)}`);
+        const data = await resp.json();
+        
+        const isPwned = data.hashes.split('\n').find(l => l.startsWith(hash.slice(5)));
+        
+        if (isPwned) {
+          const count = parseInt(isPwned.split(':')[1]);
+          vRes.innerHTML = `<div class="result-card" style="border: 1px solid var(--accent-red)"><div class="pwned-content"><div class="pwned-icon">💀</div><div style="color:var(--accent-red); font-size:1.2rem; font-weight:bold; letter-spacing:2px">COMPROMISED</div><div style="font-size:0.9rem">Found in ${count.toLocaleString()} breaches</div></div></div>`;
+        } else {
+          vRes.innerHTML = `<div class="result-card" style="border: 1px solid var(--accent-green)"><div class="clean-content"><div style="font-size:3rem; color:var(--accent-green)">🛡</div><div style="color:var(--accent-green); font-size:1.2rem; font-weight:bold; letter-spacing:2px">NO BREACHES FOUND</div></div></div>`;
+        }
+      } catch(err) {
+        vRes.innerHTML = `<div class="result-card result-card--error">Error contacting API</div>`;
+      } finally { document.getElementById('auditBtn').disabled = false; }
+    });
+
+    // Generator logic
+    const gLen = document.getElementById('genLen');
+    const gLenV = document.getElementById('genLenVal');
+    gLen.addEventListener('input', e => gLenV.textContent = e.target.value);
+    
+    document.getElementById('generateBtn').addEventListener('click', () => {
+      const len = parseInt(gLen.value);
+      const incNum = document.getElementById('genNum').checked;
+      const incSym = document.getElementById('genSym').checked;
+      
+      let chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      if(incNum) chars += '0123456789';
+      if(incSym) chars += '!@#$%^&*_-+=';
+      
+      let res = '';
+      const arr = new Uint32Array(len);
+      crypto.getRandomValues(arr);
+      for(let i=0; i<len; i++) res += chars[arr[i] % chars.length];
+      
+      pwdInput.value = res;
+      pwdInput.type = 'text';
+      document.getElementById('eyeToggle').textContent = '🙈';
+      pwdInput.dispatchEvent(new Event('input')); // trigger strength update
+    });
+
+    /* ═══════════════════════════════
+       MODULE 3: SECURITY SCANNER
+    ═══════════════════════════════ */
+    document.getElementById('scanBtn').addEventListener('click', async () => {
+      const url = document.getElementById('headerUrl').value.trim();
+      const hRes = document.getElementById('headerResult');
+      const btn = document.getElementById('scanBtn');
+      
+      if(!url){ shakeInput(document.getElementById('headerUrl')); return; }
+      btn.disabled = true;
+      hRes.innerHTML = `<div class="result-card"><div class="loading-wrap" style="color:var(--accent-purple)"><div class="spinner" style="border-top-color:var(--accent-purple)"></div><span>SCANNING HOST HEADERS...</span></div></div>`;
+      
+      try {
+        const resp = await fetch('http://localhost:8000/scan-headers', {
+          method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ url })
+        });
+        if(!resp.ok) throw new Error();
+        const data = await resp.json();
+        
+        const gc = {'A+':'Aplus', 'A':'A', 'B':'B', 'C':'C', 'D':'D', 'F':'F'}[data.grade.replace('+','plus')];
+        
+        const items = data.headers.map(h => `
+          <div class="header-item ${h.present ? 'header-item--present' : 'header-item--missing'}">
+            <div class="hi-top">
+              <span class="hi-name">${h.name}</span>
+              <span class="hi-sev hi-sev--${h.severity}">${h.severity.toUpperCase()}</span>
+            </div>
+            <div class="hi-desc">${h.description}</div>
+            ${h.value ? `<div class="hi-val">${h.value}</div>` : ''}
+            ${h.fix_suggestion ? `<div class="hi-fix">💡 ${h.fix_suggestion}</div>` : ''}
+          </div>
+        `).join('');
+        
+        hRes.innerHTML = `
+          <div class="result-card">
+            <div class="grade-wrap">
+              <div class="grade-badge grade-badge--${gc}">${data.grade}</div>
+              <div class="grade-info">
+                <h3>SECURITY GRADE</h3>
+                <p>Score: ${data.score}/100. Target resolved to ${data.final_url}</p>
+              </div>
+            </div>
+            <div class="header-list">${items}</div>
+          </div>
+        `;
+      } catch(err) {
+        hRes.innerHTML = `<div class="result-card result-card--error">Scan failed. Ensure backend running & target reachable.</div>`;
+      } finally { btn.disabled = false; }
+    });
+
+  </script>
+</body>
+</html>
